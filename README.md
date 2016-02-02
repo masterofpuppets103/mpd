@@ -4,12 +4,12 @@ A small tool for connecting to an MPD-Server. Graphical interface using Pygame.
 Features:
 ---------
 
-    *Graphical Interface
-    *Control via Keyboard
-    *Add URLs to queue
-    *Select playlist to queue
-    *toggle random mode 
-    *Show actual song on the LED-Display of SenseHat
+    * Graphical Interface
+    * Control via Keyboard
+    * Add URLs to queue
+    * Select playlist to queue
+    * toggle random mode 
+    * Show actual song on the LED-Display of SenseHat
 
 Usage: 
 ------
