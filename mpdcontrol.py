@@ -51,13 +51,22 @@ def drawplaylist():##show actual playlist
 	client.iterate = True
 	secondstotal = 0
 	i = 0
+	try:
+		songnumber = client.status()['song']
+	except KeyError: ##if no songs are loaded in the playlist, it will produce a key error. If this occurs, it says no song playing
+		songnumber = 0
+	
 	for song in client.playlistinfo():
 		secondstotal = float(song['time']) + secondstotal
 		if (i<57):##prints only the first x results. Could be done nice, for instance one could check if there is space left on the screen
 			songtime = secondstominutes(float(song['time']))
 			text9 = song['pos'] +  " " +  song['artist'] + " - " + song['title'] +" " + songtime
 			w = 70+ i*15
-			drawstrings(text9, 50, w, DARKGRAY, PLAYLISTFONT)
+			#print (song['title'])
+			if (songnumber == song['pos']):
+				drawstrings(text9, 50, w, DARKBLUE, PLAYLISTFONT)
+			else:
+				drawstrings(text9, 50, w, DARKGRAY, PLAYLISTFONT)
 		else:
 			pass
 		i = i+1
@@ -66,7 +75,27 @@ def drawplaylist():##show actual playlist
 	drawstrings(text, 10, height-80, DARKGREEN, BASICFONT)
 	
 	
-def drawallplaylists():##show actual playlist
+def drawoneplaylist():##show actual playlist
+	client.iterate = True
+	i = 0
+	secondstotal = 0
+	text10 = "Playlist: " + playlistname
+	drawstrings(text10, 50, 70, DARKBLUE, PLAYLISTFONT)
+	for song in client.listplaylistinfo(playlistname):
+		secondstotal = float(song['time']) + secondstotal
+		if (i<56):
+			songtime = secondstominutes(float(song['time']))
+			text9 = str(i) +  " " +  song['albumartist'] + " - " + song['title'] +" " + songtime
+			w = 85+ i*15
+			drawstrings(text9, 50, w, DARKGRAY, PLAYLISTFONT)
+		else:
+			pass
+		i = i+1
+	totaltime = secondstominutes(secondstotal)
+	text = "Total time: " + totaltime + " | " + str(i) + " Songs"
+	drawstrings(text, 10, height-80, DARKGREEN, BASICFONT)
+
+def drawallplaylists():##list all playlists
 	client.iterate = True
 	i = 0
 	for song in client.listplaylists():
@@ -95,7 +124,7 @@ def drawsong():#prints current info of the song and so on to the screen
 		drawstrings(text1, 10,10, DARKRED, BASICFONT)
 	
 def drawkeys():	
-	text8 = "1: show actual playlist | 2: show all playlists | 3: show help"
+	text8 = "1: show actual playlist | 2: show all playlists | 3: show help | 4: show songs of a playlist"
 	drawstrings(text8, 10,height-40, DARKGRAY, BASICFONT)
 	pygame.draw.line(DISPLAYSURF, DARKGRAY, (0, 60), (800, 60), 10)
 	pygame.draw.line(DISPLAYSURF, DARKGRAY, (0, height-50), (800, height-50), 10)
@@ -108,7 +137,7 @@ def drawhelp():
 	drawstrings(help2, indent,85, DARKGRAY, PLAYLISTFONT)
 	help3 = "p: select Playlist to add | n: play track | c: clear"
 	drawstrings(help3, indent,100, DARKGRAY, PLAYLISTFONT)
-	help4 = "1: show actual playlist | 2: show all playlists | 3: show this page"
+	help4 = "1: show actual playlist | 2: show all playlists | 3: show this page | 4: show songs of a playlist"
 	drawstrings(help4, indent,115, DARKGRAY, PLAYLISTFONT)
 
 def setscreenone():
@@ -119,13 +148,32 @@ def setscreentwo():
 	SCREEN = 2
 def setscreenthree():
 	global SCREEN 
-	SCREEN = 3
+	SCREEN = 3	
+def setscreenfour():
+	global SCREEN 
+	SCREEN = 4
 
+def setplaylistname():
+	global playlistname
+	i = 0
+	j = []
+	for song in client.listplaylists():
+		#print (i ,song['playlist'])
+		j.append(song['playlist'])#creating an array so you can access the name of the playlist. Needed because otherwise you get an error
+		i+=1
+	#show playlist by number
+	playlistnumber = int(input("Please enter the number of the playlist you want to see: ") )
+	playlistname = j[playlistnumber]
+	
+	
 #########manipulate playback
 def add():
 	print("Please insert URL")
-	url = input("-->")
-	client.add(url) ##TODO: add an exception so the program does not crash when it cannot find the URL
+	url = input("--> ")
+	try:
+		client.add(url)
+	except musicpd.CommandError:
+		print ("Please enter a playable URL")
 	#local tracks: 'local:track:USB/Musik/Ko%3Fn/Untouchables/02%20Make%20Believe.mp3'
 	#spotify: 'spotify:track:5m88DsBQPIfXps1FomdwqA'
 
@@ -179,7 +227,7 @@ def addplaylist(): ##the not-so-nice way: shows text in shell. Could be moved to
 		j.append(song['playlist'])#creating an array so you can access the name of the playlist. Needed because otherwise you get an error
 		i+=1
 	#add playlist by number:
-	playlistnumber = int(input("Please enter the number of playlist to add:") )
+	playlistnumber = int(input("Please enter the number of playlist to add: ") )
 	client.load(j[playlistnumber])#call this entry in the list and load the playlist
 	print("Playlist " + j[playlistnumber]+ " added")
 	
@@ -230,6 +278,9 @@ def handle_event(event):##configure what happens when a button is pressed
         setscreentwo()
     elif event.key == pygame.K_3:
         setscreenthree()
+    elif event.key == pygame.K_4:
+        setscreenfour()
+        setplaylistname()
 
 
 
@@ -256,6 +307,8 @@ def main():
 			drawallplaylists()#draw list of all playlists
 		elif (SCREEN == 3):
 			drawhelp()#draw list of all playlists
+		elif (SCREEN == 4):
+			drawoneplaylist()#draw info of one playlist
 		pygame.display.update()
 		disconnect()#disconnect from server this is not very cool, but I did not find a better solution yet. If you leave it out, it runs into the same connection error as with the wrong IP
 		time.sleep(0.5) ###give the server some time to relax (can be lower, so you do not have any delay when pressing a key)
@@ -277,9 +330,20 @@ else:
 	sense = SenseHat()
 	sense.clear()
 
+##reading configuration from file
+try:
+	with open('config.txt') as f:
+		lines = f.readlines()
+except FileNotFoundError:#if it cannot find the file, exit
+	print("File not found")
+	print("Exiting")
+	sys.exit()
+IP = lines[1]#IP is line number 2
+PORT = int(lines[2]) #Port is line number 3
+width = int(lines[3])
+height = int(lines[4])
 #pygame:
-width = 800
-height = 1020 ## best height if you use a full-hd screen
+
 pygame.init()
 screen = pygame.display.set_mode((width, height)) #set screen size
 DISPLAYSURF = pygame.display.set_mode((width, height))
@@ -287,15 +351,8 @@ BASICFONT = pygame.font.Font('freesansbold.ttf', 18) #set basic font
 PLAYLISTFONT = pygame.font.Font('freesansbold.ttf', 14) #sets font for playlist (I made this one a little bit smaller, so more items can be displayed)
 pygame.display.set_caption('MPD Control') # set caption of window
 
-try:
-	with open('config.txt') as f:
-		lines = f.readlines()
-except FileNotFoundError:
-	print("File not found")
-	print("Exiting")
-	sys.exit()
-IP = lines[1]
-PORT = int(lines[2])
+
+
 #musicpdc
 client = musicpd.MPDClient() # create client object
 
