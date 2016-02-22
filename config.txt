@@ -1,5 +1,2 @@
-#Usage: next line is IP, line after this is Port. Line 3 is width, line 4 is height. Do not delete this line!
 192.168.1.102
 6600
-800
-1020
