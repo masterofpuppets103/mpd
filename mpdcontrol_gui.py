@@ -53,7 +53,7 @@ class connectobject(object):
 		return result
 	
 
-####draw some windows
+
 def secondstominutes(secondsinput):##converts seconds to minutes
 	if (secondsinput > 3600): ##write playlist in hours, if it is longer than one hour
 		hours = int(secondsinput/3600)
@@ -66,7 +66,7 @@ def secondstominutes(secondsinput):##converts seconds to minutes
 		returnstring = str(minutes) + ":" + str(seconds)
 	return(returnstring)
 
-
+####draw some windows
 def drawscrollbar():##shows actual playlist  (currently not updating, so you have to re-open it all the time)
 	master2 = tk.Tk()
 	b1 = Button(master2,text="Play Track",command=playselectedtitle).pack()
@@ -153,6 +153,8 @@ def displaysong(label):##shows the actual song, time played and so on. updates e
 			timeplayed = secondstominutes(float(client.status()['elapsed']))
 			timesong = secondstominutes(float(client.currentsong()['time']))
 			text = client.currentsong()['artist'] + " - " + client.currentsong()['title'] + " | " + timeplayed + "/" + timesong + "\n" + "Album: " + client.currentsong()['album'] + " | Songnumber: " + client.status()['song'] +  "\n" + client.status()['state'] +    " " + "random: " + client.status()['random'] + " | repeat: " + client.status()['repeat'] + " \n" +"consume: " + client.status()['consume'] + " | single: " + client.status()['single']
+			volume = w2.get() ##sets volume based on the slider at the right. Because of the exception it only does this when a song is playing
+			client.setvol(volume)
 		except KeyError: ##if no songs are loaded in the playlist, it will produce a key error. If this occurs, it says no song playing
 			text = "no song playing"			
 		except musicpd.ConnectionError:
@@ -170,6 +172,9 @@ def about(): ##draw window 'about'
 	text = text + "\n" + connectinfo.print()
 	label.config(text =text)
 	label.grid()
+	
+	
+	
 #############manipulate playback
 def setpause():
     connectinfo.connect()
@@ -246,7 +251,7 @@ def addurl():##adds an URL (currently only mp3/ogg-streams, no youtube). Youtube
 
 def addstuff():##main window for adding URLs, Playlist and play a tracknumber (not very nice grouped)
 	master4 = tk.Tk()
-	master4.title("Adding")
+	master4.title("Add URL")
 	##Add an URL
 	global e3 
 	e3= Entry(master4)
@@ -395,6 +400,9 @@ master.minsize(width=150, height=100)##minimum size
 
 label = tk.Label(master, justify = LEFT)
 label.grid(column=0, row= 0, columnspan = 3)
+w2 = Scale(master, from_=100, to=0)
+w2.set(100)
+w2.grid(column=3, row= 0, rowspan = 2)
 displaysong(label)##label for actual song
 
 #buttons for controlling the playback
@@ -405,6 +413,8 @@ button2.grid(column=1, row= 1)
 button3 = tk.Button(master, text='>>', width=10, command=playnext)
 button3.grid(column=2, row= 1)
 
+
+
 ####Menu
 menu = Menu(master)
 master.config(menu=menu)
@@ -412,7 +422,7 @@ filemenu = Menu(menu)
 menu.add_cascade(label="File", menu=filemenu)
 filemenu.add_command(label="Playlist", command=drawscrollbar)
 filemenu.add_command(label="All playlists", command=drawallplaylists)
-filemenu.add_command(label="Add", command=addstuff)
+filemenu.add_command(label="Add URL", command=addstuff)
 filemenu.add_command(label="Add Local files", command=addlocal)
 filemenu.add_command(label="Exit", command=connectinfo.safe) ###should save the actual server configuration to file and read it when it starts
 
