@@ -1,43 +1,56 @@
 import tkinter as tk
 from tkinter import *
+from tkinter import messagebox ##messageboxes
 import musicpd #http://www.musicpd.org/doc/protocol/
+import paramiko
+from paramiko import * #for ssh
 
 ##managing the connection:
 class connectobject(object):
-	def __init__(self, arg1, arg2):
+	def __init__(self, arg1, arg2, arg3):##initialization. takes URL, port and username for ssh
 		self.arg1 = arg1 
 		self.arg2 = arg2
-	def connect(self):
+		self.arg3 = arg3
+	def connect(self):##connects to server
 		try:
-			client.connect(self.arg1, self.arg2) #ip and port (could also be done via config-file)
+			client.connect(self.arg1, self.arg2) 
 		except musicpd.ConnectionError:
 			pass
-			#print("No Route to Server")
-			#print("Please check if IP is right and Server is up")
-			#print("Exiting")
-			#sys.exit()
 	def print(self):
-		result = "Server: " + self.arg1 + "\n Port: " + str(self.arg2) ##save info to string and give it back
+		result = "Server: " + self.arg1 + "\n Port: " + str(self.arg2) + "\nUsername: " + str(self.arg3)##save info to string and give it back
 		return(result)
-	def disconnect(self):
+	def disconnect(self):#disconnect from server
 		try:
 			client.close()		  # send the close command
 			client.disconnect()
-		except musicpd.ConnectionError:
+		except musicpd.ConnectionError: #if it is not connected, do nothing. prevents the whole thing from shutting down
 			pass
-	def change(self, arg1, arg2):
+	def change(self, arg1, arg2, arg3):#changes the IP and Port
 		self.arg1 = arg1
 		self.arg2 = arg2
-	def safe(self):####not done yet :(
+		self.arg3 = arg3
+	def safe(self):####save actual configuration to config-file
 		configfile = open("config.txt", 'w') ##open in read-mode then delete the contents and write down Server and IP
 		configfile.truncate()
 		textstring = connectinfo.arg1
+		userstring = connectinfo.arg3
 		portconfig = str(connectinfo.arg2)
+		configfile.write(portconfig)
+		configfile.write("\n")
 		configfile.write(textstring)
 		configfile.write("\n")
-		configfile.write(portconfig)
+		configfile.write(userstring)
 		configfile.close()	
 		master.quit()##exits program
+	def getip(self): #gives back IP
+		result = self.arg1
+		return result
+	def getport(self): #gives back Port
+		result = int(self.arg2)
+		return result
+	def getuser(self): #gives back User
+		result = self.arg3
+		return result
 	
 
 ####draw some windows
@@ -54,34 +67,60 @@ def secondstominutes(secondsinput):##converts seconds to minutes
 	return(returnstring)
 
 
-def drawscrollbar():
+def drawscrollbar():##shows actual playlist  (currently not updating, so you have to re-open it all the time)
 	master2 = tk.Tk()
+	b1 = Button(master2,text="Play Track",command=playselectedtitle).pack()
+	b2 = Button(master2,text="Remove Track",command=deleteselectedtitle).pack()
 	connectinfo.connect()
 	scrollbar = Scrollbar(master2)
 	scrollbar.pack(side=RIGHT, fill=Y)
-	listbox = Listbox(master2, yscrollcommand=scrollbar.set)
+	global listbox2
+	listbox2 = Listbox(master2, yscrollcommand=scrollbar.set)
+	text = drawplaylist()
+	master2.title(text)
+	listbox2.pack(side=LEFT, fill=BOTH, expand=50)
+	scrollbar.config(command=listbox2.yview)
+	connectinfo.disconnect()
+	
+def drawplaylist(): #draws playlist to update the view.
 	secondstotal = 0
 	i=0
+	connectinfo.connect()
 	for song in client.playlistinfo():
 		secondstotal = float(song['time']) + secondstotal
 		songtime = secondstominutes(float(song['time']))
 		text9 = song['pos'] +  " " +  song['artist'] + " - " + song['title'] +" " + songtime
-		listbox.insert(END, text9) 
+		listbox2.insert(END, text9) 
 		i+=1   
 	totaltime = secondstominutes(secondstotal)
 	text = "Actual Playlist | Total time: " + totaltime + " | " + str(i) + " Songs"
-	master2.title(text)
-	listbox.pack(side=LEFT, fill=BOTH, expand=50)
-	scrollbar.config(command=listbox.yview)
 	connectinfo.disconnect()
+	return text
+
+def playselectedtitle():##plays selected sond of the playlist
+    tracknumber = min(listbox2.curselection()) 
+    connectinfo.connect()
+    client.play(tracknumber)
+    connectinfo.disconnect()
+
+def deleteselectedtitle():##removes selected track from playlist (not properly working)
+    tracknumber = min(listbox2.curselection()) 
+    connectinfo.connect()
+    #client.deleteid(tracknumber)
+    client.delete(tracknumber)
+    #print(tracknumber)
+    #test() --> should call function drawplaylist, to update the playlist, but not working
+    connectinfo.disconnect()
 
 def drawallplaylists():##list all playlists
 	connectinfo.connect()
 	master3 = tk.Tk()
 	master3.title("Playlist overview")
 	master3.minsize(width=50, height=300) #makes that the window is not shown too small, but not a very nice solution
+	b1 = Button(master3,text="Add playlist",command=addEntry).pack(side = LEFT)
 	scrollbar = Scrollbar(master3)
 	scrollbar.pack(side=RIGHT, fill=Y)
+	global listbox
 	listbox = Listbox(master3, yscrollcommand=scrollbar.set)	
 	client.iterate = True
 	i = 0
@@ -92,14 +131,28 @@ def drawallplaylists():##list all playlists
 	listbox.pack(side=LEFT, fill=BOTH, expand=50)
 	scrollbar.config(command=listbox.yview)
 	connectinfo.disconnect()
+	
 
-def displaysong(label):
+def addEntry():##adds selected playlist to the playlist
+    playlistnumber = min(listbox.curselection())   ##get selection of listbox
+    connectinfo.connect()    
+    i = 0
+    j = []
+    for song in client.listplaylists():
+        j.append(song['playlist'])#creating an array so you can access the name of the playlist. Needed because otherwise you get an error
+        i+=1
+	#add playlist by number:
+    client.load(j[playlistnumber])#call this entry in the list and load the playlist
+    connectinfo.disconnect()
+
+
+def displaysong(label):##shows the actual song, time played and so on. updates every second
 	def display():
 		connectinfo.connect()
 		try:
 			timeplayed = secondstominutes(float(client.status()['elapsed']))
 			timesong = secondstominutes(float(client.currentsong()['time']))
-			text = client.currentsong()['artist'] + " - " + client.currentsong()['title'] + " | " + timeplayed + "/" + timesong + "\n" + "Album: " + client.currentsong()['album'] + " | Songnumber: " + client.status()['song'] +  "\n" + client.status()['state'] +    " " + "random: " + client.status()['random'] + " | repeat: " + client.status()['repeat'] + " \n consume: " + client.status()['consume'] + " | single: " + client.status()['single']
+			text = client.currentsong()['artist'] + " - " + client.currentsong()['title'] + " | " + timeplayed + "/" + timesong + "\n" + "Album: " + client.currentsong()['album'] + " | Songnumber: " + client.status()['song'] +  "\n" + client.status()['state'] +    " " + "random: " + client.status()['random'] + " | repeat: " + client.status()['repeat'] + " \n" +"consume: " + client.status()['consume'] + " | single: " + client.status()['single']
 		except KeyError: ##if no songs are loaded in the playlist, it will produce a key error. If this occurs, it says no song playing
 			text = "no song playing"			
 		except musicpd.ConnectionError:
@@ -109,7 +162,7 @@ def displaysong(label):
 		connectinfo.disconnect()
 	display()
 
-def about():
+def about(): ##draw window 'about'
 	master5 = tk.Tk()
 	master5.title('About')
 	label = tk.Label(master5)
@@ -128,7 +181,7 @@ def playnext(): ##play next track
     client.next()
     connectinfo.disconnect()
 
-class playattributes():
+class playattributes():##bundles all functions for playing like random, single, consume, repeat and clearplaylist
 	def random():#toggle random
 		connectinfo.connect()
 		if (client.status()['random'] == "1"):
@@ -161,6 +214,11 @@ class playattributes():
 			client.repeat(1)
 		connectinfo.disconnect()
 	
+	def clearplaylist(): #clear the playlist
+	    connectinfo.connect()
+	    client.clear()
+	    connectinfo.disconnect()
+	
 def playlast():##start current track again or play song before if actual song runs less than 10 seconds
     connectinfo.connect()    
     tracknumber = float(client.status()['song'])
@@ -172,64 +230,23 @@ def playlast():##start current track again or play song before if actual song ru
     client.play(tracknumber)
     connectinfo.disconnect()
 
-def clearplaylist(): #clear the playlist
-	connectinfo.connect()
-	client.clear()
-	connectinfo.disconnect()
+
 
 ####window 'add'
-def addplaylist(): ##the not-so-nice way: shows text in shell. Could be moved to a graphical view
-    playlistnumber = int(float(e1.get()))    
-    connectinfo.connect()    
-    i = 0
-    j = []
-    for song in client.listplaylists():
-        j.append(song['playlist'])#creating an array so you can access the name of the playlist. Needed because otherwise you get an error
-        i+=1
-	#add playlist by number:
-    client.load(j[playlistnumber])#call this entry in the list and load the playlist
-    connectinfo.disconnect()
-    e1.delete(0,END) #deletes input of the field
-
-def addurl():##adds an URL (currently only mp3/ogg-streams, no youtube)
+def addurl():##adds an URL (currently only mp3/ogg-streams, no youtube). Youtube-code: "yt:https://www.youtube.com/watch?v=N9nUIFYc5II" but also on server not working :(
     connectinfo.connect()
     url = e3.get()
     try:
         client.add(url)
     except musicpd.CommandError:
-        print ("Please enter a playable URL")
+        messagebox.showwarning("Error", "Please enter a playable URL")
     connectinfo.disconnect()
     e3.delete(0,END)
 
-def playtitle():##play given number on the playlist
-    connectinfo.connect()
-    playtitleloop = True
-    while playtitleloop:
-        try:
-            number = int(float(e2.get())) 
-            if (number < 0):# | (number >10):
-                print("Please insert a positive number")
-            else:
-                client.play(number)
-                playtitleloop = False
-        except ValueError:
-            print ("Please enter a number")
-    connectinfo.disconnect()
-    e2.delete(0,END)
 
 def addstuff():##main window for adding URLs, Playlist and play a tracknumber (not very nice grouped)
 	master4 = tk.Tk()
 	master4.title("Adding")
-	##Adding a Playlist
-	global e1 
-	e1= Entry(master4)
-	e1.grid(row=0, column=0)
-	Button(master4, text='Add Playlist', command=addplaylist).grid(row=0, column=1)
-	##Play track number
-	global e2 
-	e2 = Entry(master4)
-	e2.grid(row=1, column=0)
-	Button(master4, text='Play track', command=playtitle).grid(row=1, column=1)
 	##Add an URL
 	global e3 
 	e3= Entry(master4)
@@ -277,49 +294,98 @@ def showalbums():
 		text9 = text9  + song['directory'][stringlength:] + "\n"
 	labellocalartists.config(text=text9)
 	connectinfo.disconnect()
-	
-	
-def serversetup():
-	master6 = tk.Tk()
-	master6.title("Adding")
-	label = tk.Label(master6, text="IP:",justify = LEFT)
-	label.grid(row = 0, column= 0)
-	global e7
-	e7= Entry(master6)
-	e7.grid(row = 0, column= 1)
-	global e8
-	e8= Entry(master6)
-	e8.grid(row = 1, column= 1)
-	label = tk.Label(master6, text="Port:",justify = LEFT)
-	label.grid(row = 1, column= 0)
-	Button(master6, text='Update IP and Port', command=serversetupbutton).grid(row = 2, column= 1)
 
-def serversetupbutton():#adds album according to artist and album name
-	ip = e7.get()
-	port = int(e8.get())
-	connectinfo.change(ip, port)
-	e7.delete(0,END)
-	e8.delete(0,END)
+####class for setting up the server
+class serversetup():
+	def serversetupwindow():#window for serversetup
+		serversetupwin = tk.Tk()
+		serversetupwin.title("Set up IP and Port")
+		label = tk.Label(serversetupwin, text="IP:",justify = LEFT)
+		label.grid(row = 0, column= 0)
+		label = tk.Label(serversetupwin, text="Port:",justify = LEFT)
+		label.grid(row = 1, column= 0)
+		label = tk.Label(serversetupwin, text="Username:",justify = LEFT)
+		label.grid(row = 2, column= 0)
+		global e7
+		e7= Entry(serversetupwin)
+		e7.grid(row = 0, column= 1)
+		global e8
+		e8= Entry(serversetupwin)
+		e8.grid(row = 1, column= 1)
+		global e20
+		e20= Entry(serversetupwin)
+		e20.grid(row = 2, column= 1)		
+		Button(serversetupwin, text='Update IP and Port', command=serversetup.serversetupbutton).grid(row = 3, column= 1)
+
+	def serversetupbutton():#changes connection info based on input at serversetup
+		ip = e7.get()
+		port = int(e8.get())
+		user = e20.get()
+		connectinfo.change(ip, port,user)
+		e7.delete(0,END)
+		e8.delete(0,END)
+		e20.delete(0,END)
+	
+##class that connects to the server via ssh and can shut down the server
+class shutdown():
+	def sshshutdown():
+		sshclient = SSHClient() ##init sshclient
+		sshclient.load_system_host_keys()
+		password = sshpasswordinput.get()
+		try:
+			sshclient.connect(connectinfo.getip(), username = connectinfo.getuser(), password = password) 
+			time = sshtimeinput.get()
+			command = 'sudo shutdown -hP ' + time #shutdown with given time
+			sshclient.exec_command(command)
+			sshclient.close()
+		except paramiko.ssh_exception.AuthenticationException:
+			messagebox.showwarning("Error", "Wrong username or password")
+		sshpasswordinput.delete(0,END) #delete field with password
+		sshtimeinput.delete(0,END) #delete field with time
+
+	def mainwindow(): #main window, you have to provide the time and the passoword for the server
+		shutdownwindow = tk.Tk()
+		shutdownwindow.title("MPC Shutdown")#title
+		shutdownwindow.minsize(width=150, height=100)##minimum size
+		label = tk.Label(shutdownwindow, justify = LEFT, text="Enter Passwort")
+		label.grid(column=0, row= 0)
+		label2 = tk.Label(shutdownwindow, justify = LEFT, text="Enter Time ")
+		label2.grid(column=0, row= 1)
+		global sshpasswordinput
+		sshpasswordinput= Entry(shutdownwindow, show="*")##make password invisible, input field for password
+		sshpasswordinput.grid(row = 0, column= 1)
+		global sshtimeinput
+		sshtimeinput= Entry(shutdownwindow)#entry-field for time
+		sshtimeinput.grid(row = 1, column= 1)
+		button1 = tk.Button(shutdownwindow, text='Shutdown', width=10, command=shutdown.sshshutdown)
+		button1.grid(column=1, row= 2)	
+	
 	
 ####setting up connection
 try:
-	with open('config.txt') as f:
+	with open('config.txt') as f:#open file
 		lines = f.readlines()
-	IP = lines[0]#IP is line number 2
-	PORT = int(lines[1]) #Port is line number 3
+	IP = lines[1]#IP is line number 2
+	IP = IP[:-1]#get rid of linbreak after ip
+	USER = lines[2]#USER is line number 3
+	PORT = int(lines[0]) #Port is line number 1
 	f.close()
 except FileNotFoundError:#if it cannot find the file, set IP and Port to a random value so program starts and user can change it
 	IP = '192.168.1.2'
 	PORT = 6600
+	USER = 'root'
 except ValueError:#if file is corrupted, set IP and Port to a random value so program starts and user can change it
 	IP = '192.168.1.2'
 	PORT = 6600
+	USER = 'root'
 except IndexError:#if file is corrupted, set IP and Port to a random value so program starts and user can change it
 	IP = '192.168.1.2'
 	PORT = 6600
+	USER = 'root'
 
-client = musicpd.MPDClient()
-connectinfo = connectobject(IP, PORT)
+client = musicpd.MPDClient()#set up basic object for MPD-Client
+connectinfo = connectobject(IP, PORT, USER)#set object with connection settings
+
 
 #####################
 ##########main window
@@ -353,14 +419,21 @@ filemenu.add_command(label="Exit", command=connectinfo.safe) ###should save the 
 menu2 = Menu(master)
 master.config(menu=menu)
 newmenu = Menu(menu2)
-menu.add_cascade(label="About", menu=newmenu)
-newmenu.add_command(label="Clear Playlist", command=clearplaylist)
+menu.add_cascade(label="Playback modes", menu=newmenu)
+newmenu.add_command(label="Clear Playlist", command=playattributes.clearplaylist)
 newmenu.add_command(label="Toggle Random", command=playattributes.random)
 newmenu.add_command(label="Toggle Repeat", command=playattributes.repeat)
 newmenu.add_command(label="Toggle consume", command=playattributes.consume)
 newmenu.add_command(label="Toggle single", command=playattributes.single)
-newmenu.add_command(label="Set up Server", command=serversetup)
+
+menu3 = Menu(master)
+master.config(menu=menu)
+newmenu = Menu(menu3)
+menu.add_cascade(label="About/setup", menu=newmenu)
+newmenu.add_command(label="Set up Server", command=serversetup.serversetupwindow)
 newmenu.add_command(label="About", command=about)
+newmenu.add_command(label="Shutdown", command=shutdown.mainwindow)
 
 ##############
+master.protocol("WM_DELETE_WINDOW", connectinfo.safe)
 mainloop()
